@@ -273,15 +273,32 @@ async function loadGmailBar() {
 async function runIngestNow(mailboxEmail) {
   const statusEl = document.getElementById('ingest-status');
   if (statusEl) statusEl.textContent = 'Running...';
-  const resp = await fetch(API + '/api/ingest/run?mailbox_email=' + encodeURIComponent(mailboxEmail), {
-    method: 'POST', headers: authHeaders(),
-  });
-  const data = await resp.json();
-  if (statusEl) statusEl.textContent = '';
-  if (data.error) { showToast(data.error, false); return; }
-  showToast(`Ingested ${data.ingested_documents} new document(s).`, true);
-  loadKPIs();
-  if (!document.getElementById('tab-tracker').classList.contains('hidden')) loadTracker();
+  // A hard timeout so a stuck request (e.g. a slow/hung AI call server-side)
+  // shows an error instead of leaving the button reading "Running..." forever
+  // with no way to tell whether it's still working or has silently died.
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 120000);
+  try {
+    const resp = await fetch(API + '/api/ingest/run?mailbox_email=' + encodeURIComponent(mailboxEmail), {
+      method: 'POST', headers: authHeaders(), signal: controller.signal,
+    });
+    let data;
+    try {
+      data = await resp.json();
+    } catch {
+      throw new Error(`Server error (HTTP ${resp.status}) - check the server's terminal window for details.`);
+    }
+    if (data.error) { showToast(data.error, false); return; }
+    showToast(`Ingested ${data.ingested_documents} new document(s).`, true);
+    loadKPIs();
+    if (!document.getElementById('tab-tracker').classList.contains('hidden')) loadTracker();
+  } catch (e) {
+    const message = e.name === 'AbortError' ? 'Timed out after 2 minutes - check the server terminal window.' : e.message;
+    showToast(message, false);
+  } finally {
+    clearTimeout(timeoutId);
+    if (statusEl) statusEl.textContent = '';
+  }
 }
 
 function fieldStatus(elId, isSet) {

@@ -68,8 +68,20 @@ def run_ingest_now(mailbox_email: str, db: Session = Depends(get_db)) -> dict:
     if not token_record:
         return {"error": f"No connected Gmail mailbox for {mailbox_email}. Call /api/auth/gmail/authorize first."}
 
-    client = GmailClient(db, token_record)
-    new_documents = poll_and_ingest(db, client, runtime_config.GMAIL_QUERY)
+    try:
+        client = GmailClient(db, token_record)
+        new_documents = poll_and_ingest(db, client, runtime_config.GMAIL_QUERY)
+    except Exception as exc:  # noqa: BLE001 - surface the real error to the UI instead of a silent 500
+        return {"error": f"Could not read Gmail: {exc}"}
+
+    errors = []
     for doc in new_documents:
-        process_document(db, doc)
-    return {"ingested_documents": len(new_documents)}
+        try:
+            process_document(db, doc)
+        except Exception as exc:  # noqa: BLE001 - one bad document must not lose the whole run's result
+            db.rollback()
+            errors.append(f"{doc.attachment_name}: {exc}")
+    result = {"ingested_documents": len(new_documents)}
+    if errors:
+        result["error"] = "Some documents failed to process: " + "; ".join(errors)
+    return result
