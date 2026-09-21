@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
@@ -11,6 +12,35 @@ from ...models import OAuthToken, User, UserRole
 from ...security import create_access_token, hash_password, require_admin, verify_password
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+
+class SetupRequest(BaseModel):
+    email: str
+    name: str
+    password: str
+
+
+@router.get("/needs-setup")
+def needs_setup(db: Session = Depends(get_db)):
+    """No admin/login screen is any use before a first account exists, and a
+    non-technical deployer has no way to run a script to create one. The
+    dashboard checks this on load and shows a one-time "create your account"
+    form instead of the login form until it's answered False."""
+    return {"needs_setup": db.query(User).count() == 0}
+
+
+@router.post("/setup")
+def setup(payload: SetupRequest, db: Session = Depends(get_db)):
+    """Creates the first admin account. Only works once - the moment any user
+    exists, this always 400s, so it can't be used to add a second admin
+    without already being logged in as one (see POST /api/auth/users)."""
+    if db.query(User).count() > 0:
+        raise HTTPException(status_code=400, detail="Setup has already been completed - log in instead.")
+    user = User(email=payload.email, name=payload.name, hashed_password=hash_password(payload.password), role=UserRole.ADMIN)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return {"access_token": create_access_token(user), "token_type": "bearer", "role": user.role.value}
 
 
 @router.post("/login")

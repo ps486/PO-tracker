@@ -34,8 +34,8 @@
   .status.PARTIALLY_RECEIVED, .status.PARTIALLY_INVOICED, .status.PENDING_DELIVERY { background: rgba(245,166,35,.15); color: var(--warn); }
   .status.FULLY_RECEIVED, .status.CLOSED, .status.FULLY_INVOICED { background: rgba(61,220,151,.15); color: var(--ok); }
   .hidden { display: none; }
-  #login-panel { max-width: 360px; margin: 80px auto; background: var(--panel); border: 1px solid var(--border); padding: 24px; border-radius: 10px; }
-  #login-panel input { width: 100%; margin-bottom: 10px; }
+  #login-panel, #setup-panel { max-width: 360px; margin: 80px auto; background: var(--panel); border: 1px solid var(--border); padding: 24px; border-radius: 10px; }
+  #login-panel input, #setup-panel input { width: 100%; margin-bottom: 10px; }
   .error { color: var(--danger); font-size: 13px; margin-top: 8px; }
   .severity-HIGH, .severity-CRITICAL { color: var(--danger); }
   .severity-MEDIUM { color: var(--warn); }
@@ -50,7 +50,17 @@
 </head>
 <body>
 
-<div id="login-panel">
+<div id="setup-panel" class="hidden">
+  <h2>Create Your Account</h2>
+  <p style="margin-top:-4px; font-size:13px; color: var(--muted);">This is a one-time step - it only appears because no account exists yet. This will be your admin login.</p>
+  <input id="setup-name" placeholder="Your name" />
+  <input id="setup-email" placeholder="Email" />
+  <input id="setup-password" type="password" placeholder="Choose a password" />
+  <button class="btn primary" onclick="setupAccount()">Create Account</button>
+  <div class="error" id="setup-error"></div>
+</div>
+
+<div id="login-panel" class="hidden">
   <h2>PO Tracker Login</h2>
   <input id="login-email" placeholder="Email" />
   <input id="login-password" type="password" placeholder="Password" />
@@ -126,6 +136,15 @@ function token() { return localStorage.getItem('po_tracker_token'); }
 function role() { return localStorage.getItem('po_tracker_role'); }
 function authHeaders() { return { 'Authorization': 'Bearer ' + token() }; }
 
+function enterApp(data) {
+  localStorage.setItem('po_tracker_token', data.access_token);
+  localStorage.setItem('po_tracker_role', data.role);
+  document.getElementById('setup-panel').classList.add('hidden');
+  document.getElementById('login-panel').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  initApp();
+}
+
 async function login() {
   const email = document.getElementById('login-email').value;
   const password = document.getElementById('login-password').value;
@@ -133,21 +152,43 @@ async function login() {
   try {
     const resp = await fetch(API + '/api/auth/login', { method: 'POST', body });
     if (!resp.ok) throw new Error('Invalid credentials');
-    const data = await resp.json();
-    localStorage.setItem('po_tracker_token', data.access_token);
-    localStorage.setItem('po_tracker_role', data.role);
-    document.getElementById('login-panel').classList.add('hidden');
-    document.getElementById('app').classList.remove('hidden');
-    initApp();
+    enterApp(await resp.json());
   } catch (e) {
     document.getElementById('login-error').textContent = e.message;
   }
 }
+
+async function setupAccount() {
+  const name = document.getElementById('setup-name').value;
+  const email = document.getElementById('setup-email').value;
+  const password = document.getElementById('setup-password').value;
+  try {
+    const resp = await fetch(API + '/api/auth/setup', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, password }),
+    });
+    if (!resp.ok) { const err = await resp.json(); throw new Error(err.detail || 'Could not create account'); }
+    enterApp(await resp.json());
+  } catch (e) {
+    document.getElementById('setup-error').textContent = e.message;
+  }
+}
+
 function logout() {
   localStorage.removeItem('po_tracker_token');
   localStorage.removeItem('po_tracker_role');
   document.getElementById('login-panel').classList.remove('hidden');
   document.getElementById('app').classList.add('hidden');
+}
+
+async function showLoginOrSetup() {
+  try {
+    const resp = await fetch(API + '/api/auth/needs-setup');
+    const data = await resp.json();
+    document.getElementById(data.needs_setup ? 'setup-panel' : 'login-panel').classList.remove('hidden');
+  } catch (e) {
+    document.getElementById('login-panel').classList.remove('hidden');  // fail safe: show login if the check itself fails
+  }
 }
 
 function showToast(message, ok) {
@@ -325,10 +366,10 @@ function initApp() {
 }
 
 if (token()) {
-  document.getElementById('login-panel').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
   initApp();
 } else {
+  showLoginOrSetup();
   handleGmailRedirect();  // e.g. session expired between connecting Gmail and the redirect landing
 }
 </script>

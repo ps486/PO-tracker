@@ -65,25 +65,10 @@ uvicorn backend.app.main:app --reload
 
 Open the dashboard at `http://localhost:8000/dashboard/` (API at
 `http://localhost:8000/api`, interactive docs at `http://localhost:8000/docs`).
-
-Create the first admin user (needed before you can log in or connect Gmail):
-
-```bash
-python - <<'PY'
-from backend.app.db import SessionLocal, Base, engine
-from backend.app.models import User, UserRole
-from backend.app.security import hash_password
-
-Base.metadata.create_all(bind=engine)
-db = SessionLocal()
-db.add(User(email="admin@example.com", name="Admin", hashed_password=hash_password("changeme"), role=UserRole.ADMIN))
-db.commit()
-PY
-```
-
-Log in via `POST /api/auth/login` (form-encoded `username`/`password`) to get a
-JWT, then open the dashboard and use that token (the login form in the
-dashboard does this for you).
+The very first time it's opened (no user exists yet), it shows a **Create Your
+Account** form instead of a login form - fill that in once and you're the
+admin. No script, no terminal command. Every visit after that shows the normal
+login screen.
 
 ## Connecting Gmail
 
