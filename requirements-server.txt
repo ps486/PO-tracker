@@ -1,0 +1,8 @@
+# Only needed for Server deployment (spec section 21: PostgreSQL as the
+# production datastore). Local Mode uses SQLite and never needs this - it's
+# kept out of requirements.txt so a local install never has to compile it
+# (psycopg2-binary sometimes has no ready-made wheel for a brand-new Python
+# version and falls back to building from source, which needs PostgreSQL's
+# own build tools installed - completely unnecessary for anyone running
+# Local Mode, so we don't force it on them).
+psycopg2-binary==2.9.9

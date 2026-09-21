@@ -114,7 +114,7 @@ instead of `127.0.0.1`), an Anthropic API key.
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt -r requirements-server.txt   # the second file adds the PostgreSQL driver
 cp .env.example .env   # fill in DATABASE_URL and SECRET_KEY at minimum -
                         # ANTHROPIC_API_KEY/GOOGLE_CLIENT_ID/SECRET can also be
                         # left blank here and pasted into the Settings tab instead
