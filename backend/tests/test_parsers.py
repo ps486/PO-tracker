@@ -3,7 +3,7 @@ Excel PO, multi-page PDF, and unreadable attachment."""
 import io
 import os
 
-import fitz  # PyMuPDF
+import pymupdf as fitz
 import openpyxl
 from PIL import Image
 

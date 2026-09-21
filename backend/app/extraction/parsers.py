@@ -18,7 +18,7 @@ import os
 from dataclasses import dataclass, field
 
 import pdfplumber
-import fitz  # PyMuPDF
+import pymupdf as fitz
 from PIL import Image
 import pandas as pd
 from docx import Document as DocxDocument
