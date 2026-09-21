@@ -13,6 +13,7 @@ import hashlib
 from cryptography.fernet import Fernet
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
+from googleapiclient.discovery import build
 
 from sqlalchemy.orm import Session
 
@@ -59,10 +60,21 @@ def get_authorization_url() -> tuple[str, str]:
     return auth_url, state
 
 
-def exchange_code_for_tokens(db: Session, code: str, state: str, mailbox_email: str) -> OAuthToken:
+def _discover_mailbox_email(creds: Credentials) -> str:
+    """Google's OAuth redirect never tells us which mailbox was granted - we
+    have to ask Gmail itself, using the credentials we just received. This
+    also guarantees the stored mailbox_email is the one the user actually
+    consented with, not whatever a caller happened to pass in."""
+    service = build("gmail", "v1", credentials=creds, cache_discovery=False)
+    profile = service.users().getProfile(userId="me").execute()
+    return profile["emailAddress"]
+
+
+def exchange_code_for_tokens(db: Session, code: str, state: str) -> OAuthToken:
     flow = build_flow(state=state)
     flow.fetch_token(code=code)
     creds = flow.credentials
+    mailbox_email = _discover_mailbox_email(creds)
 
     existing = (
         db.query(OAuthToken)

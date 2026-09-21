@@ -87,16 +87,23 @@ dashboard does this for you).
 
 ## Connecting Gmail
 
-1. As an admin, call `GET /api/auth/gmail/authorize` - it returns a Google
-   consent URL. No password is ever requested.
-2. Open that URL, sign in with the mailbox you want monitored, and grant
-   read-only Gmail access.
-3. Google redirects to `GOOGLE_OAUTH_REDIRECT_URI` with a `code` - the
-   `/api/auth/gmail/callback` endpoint exchanges it for tokens (pass
-   `mailbox_email` as a query param so multiple mailboxes can be connected).
-4. Trigger a manual ingestion run to test it: `POST /api/ingest/run?mailbox_email=...`
-5. In production, run the background worker so this happens automatically:
-   `python -m backend.app.worker.tasks` (or `docker-compose up worker`).
+From the dashboard (as an admin), click **+ Connect Gmail** in the bar under
+the header. That takes you to Google's consent screen; after you approve
+read-only access, Google redirects back and the mailbox appears as a chip
+with a **Run Ingestion Now** button (useful for testing without waiting for
+the poll interval). Multiple mailboxes can be connected the same way.
+
+Under the hood: `GET /api/auth/gmail/authorize` (admin-only) returns a Google
+consent URL; Google redirects to `/api/auth/gmail/callback` with a `code`,
+which is exchanged for tokens - the mailbox address itself is discovered from
+Gmail's own profile API at that point (Google's redirect never tells us which
+account was granted, so we ask). `GET /api/auth/gmail/mailboxes` lists
+connected mailboxes, and `POST /api/ingest/run?mailbox_email=...` runs one
+ingestion cycle on demand.
+
+In production, run the background worker so ingestion happens automatically
+throughout the day rather than only when you click the button:
+`python -m backend.app.worker.tasks` (or `docker-compose up worker`).
 
 `GMAIL_QUERY` in `.env` controls which mail is scanned (default:
 `label:po-tracker newer_than:7d` - create a Gmail label/filter to route vendor

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from ...db import get_db
 from ...gmail import auth as gmail_auth
-from ...models import User, UserRole
+from ...models import OAuthToken, User, UserRole
 from ...security import create_access_token, hash_password, require_admin, verify_password
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -40,6 +41,20 @@ def gmail_authorize():
 
 
 @router.get("/gmail/callback")
-def gmail_callback(code: str, state: str, mailbox_email: str, db: Session = Depends(get_db)):
-    record = gmail_auth.exchange_code_for_tokens(db, code, state, mailbox_email)
-    return {"connected": True, "mailbox_email": record.mailbox_email}
+def gmail_callback(code: str, state: str, db: Session = Depends(get_db)):
+    """Google redirects the browser here after consent - it only ever sends
+    back `code` and `state` (whatever mailbox was granted is discovered from
+    Gmail itself inside exchange_code_for_tokens). We land the admin back on
+    the dashboard with a query flag rather than returning raw JSON, since this
+    is a full-page browser redirect, not an API call from the frontend."""
+    try:
+        record = gmail_auth.exchange_code_for_tokens(db, code, state)
+    except Exception as exc:  # noqa: BLE001 - surface any OAuth failure to the admin, not a 500 page
+        return RedirectResponse(url=f"/dashboard/?gmail_error={exc}")
+    return RedirectResponse(url=f"/dashboard/?gmail_connected=1&mailbox={record.mailbox_email}")
+
+
+@router.get("/gmail/mailboxes", dependencies=[Depends(require_admin)])
+def list_connected_mailboxes(db: Session = Depends(get_db)):
+    tokens = db.query(OAuthToken).filter(OAuthToken.provider == "gmail").all()
+    return [{"mailbox_email": t.mailbox_email, "connected_at": t.created_at} for t in tokens]
