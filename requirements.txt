@@ -1,20 +1,21 @@
 fastapi==0.115.0
-uvicorn[standard]==0.30.6
-sqlalchemy==2.0.35
+# ">=" rather than "==" for these: pinning to one exact version means pip
+# either finds a pre-built wheel for that EXACT version and your Python, or
+# tries to compile from source (these all have C/Rust extensions) and often
+# fails on whatever Python release is newest at install time. ">=" lets pip
+# pick whichever already-published version already has a wheel for your
+# Python instead of being stuck on one frozen at the time this was written.
+uvicorn[standard]>=0.30.6
+sqlalchemy>=2.0.35
 alembic==1.13.2
-pydantic==2.9.2
-pydantic-settings==2.5.2
+pydantic>=2.9.2
+pydantic-settings>=2.5.2
 python-dotenv==1.0.1
 google-api-python-client==2.146.0
 google-auth-oauthlib==1.2.1
 google-auth==2.34.0
 anthropic==0.36.0
 pdfplumber==0.11.4
-# ">=" rather than "==" for the compiled/native packages below: pinning them
-# to one exact version means pip either finds a pre-built wheel for that
-# EXACT version and your Python, or tries to compile from source and often
-# fails on whatever Python release is newest at install time. ">=" lets pip
-# pick whichever version already has a wheel for your Python instead.
 PyMuPDF>=1.24.10
 openpyxl==3.1.5
 pandas>=2.2.3
@@ -22,8 +23,7 @@ python-docx==1.1.2
 Pillow>=10.4.0
 rapidfuzz>=3.9.7
 APScheduler==3.10.4
-passlib[bcrypt]==1.7.4
-bcrypt==4.0.1
+bcrypt>=4.0.1
 python-jose[cryptography]==3.3.0
 python-multipart==0.0.9
 cryptography>=43.0.1

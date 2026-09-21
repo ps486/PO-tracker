@@ -7,28 +7,33 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
 from .config import settings
 from .db import get_db
 from .models import User, UserRole
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
 ROLE_RANK = {UserRole.VIEWER: 0, UserRole.PROCUREMENT: 1, UserRole.FINANCE: 1, UserRole.ADMIN: 2}
 
+# Calling bcrypt directly (no passlib) - passlib is unmaintained and probes a
+# bcrypt internal (__about__.__version__) that current bcrypt releases no
+# longer have, breaking every hash/verify call. bcrypt itself has a hard
+# 72-byte input limit, so the password is truncated to that before hashing;
+# this matches passlib's own default behavior for the bcrypt backend.
+
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(password.encode("utf-8")[:72], bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(password: str, hashed: str) -> bool:
-    return pwd_context.verify(password, hashed)
+    return bcrypt.checkpw(password.encode("utf-8")[:72], hashed.encode("utf-8"))
 
 
 def create_access_token(user: User) -> str:
