@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PO Tracker</title>
+<style>
+  :root {
+    --bg: #0f1720; --panel: #17212b; --border: #253340; --text: #e6edf3;
+    --muted: #8b98a5; --accent: #4f8cff; --danger: #ff6b6b; --warn: #f5a623; --ok: #3ddc97;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  header { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--border); }
+  header h1 { font-size: 18px; margin: 0; }
+  nav { display: flex; gap: 4px; padding: 0 20px; border-bottom: 1px solid var(--border); }
+  nav button { background: none; border: none; color: var(--muted); padding: 10px 14px; cursor: pointer; font-size: 14px; border-bottom: 2px solid transparent; }
+  nav button.active { color: var(--text); border-color: var(--accent); }
+  main { padding: 20px; max-width: 1400px; margin: 0 auto; }
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .kpi { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+  .kpi .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  .kpi .value { font-size: 22px; font-weight: 600; margin-top: 4px; }
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  input, select, button.btn { background: var(--panel); border: 1px solid var(--border); color: var(--text); padding: 8px 10px; border-radius: 6px; font-size: 13px; }
+  button.btn { cursor: pointer; }
+  button.btn.primary { background: var(--accent); border-color: var(--accent); color: white; }
+  table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  th, td { padding: 8px 10px; text-align: left; font-size: 13px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; position: sticky; top: 0; background: var(--panel); }
+  tr:hover { background: rgba(255,255,255,0.03); }
+  .status { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .status.OVERDUE, .status.EXCEPTION { background: rgba(255,107,107,.15); color: var(--danger); }
+  .status.PARTIALLY_RECEIVED, .status.PARTIALLY_INVOICED, .status.PENDING_DELIVERY { background: rgba(245,166,35,.15); color: var(--warn); }
+  .status.FULLY_RECEIVED, .status.CLOSED, .status.FULLY_INVOICED { background: rgba(61,220,151,.15); color: var(--ok); }
+  .hidden { display: none; }
+  #login-panel { max-width: 360px; margin: 80px auto; background: var(--panel); border: 1px solid var(--border); padding: 24px; border-radius: 10px; }
+  #login-panel input { width: 100%; margin-bottom: 10px; }
+  .error { color: var(--danger); font-size: 13px; margin-top: 8px; }
+  .severity-HIGH, .severity-CRITICAL { color: var(--danger); }
+  .severity-MEDIUM { color: var(--warn); }
+  .severity-LOW { color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div id="login-panel">
+  <h2>PO Tracker Login</h2>
+  <input id="login-email" placeholder="Email" />
+  <input id="login-password" type="password" placeholder="Password" />
+  <button class="btn primary" onclick="login()">Sign in</button>
+  <div class="error" id="login-error"></div>
+</div>
+
+<div id="app" class="hidden">
+  <header>
+    <h1>Automated PO Tracker</h1>
+    <div>
+      <button class="btn" onclick="exportExcel()">Export Excel</button>
+      <button class="btn" onclick="logout()">Log out</button>
+    </div>
+  </header>
+  <nav>
+    <button data-tab="tracker" class="active" onclick="showTab('tracker')">PO Tracker</button>
+    <button data-tab="exceptions" onclick="showTab('exceptions')">Exceptions</button>
+    <button data-tab="vendors" onclick="showTab('vendors')">Vendor Analysis</button>
+  </nav>
+  <main>
+    <div class="kpi-row" id="kpi-row"></div>
+
+    <div id="tab-tracker">
+      <div class="filters">
+        <input id="f-vendor" placeholder="Vendor" oninput="loadTracker()" />
+        <select id="f-status" onchange="loadTracker()">
+          <option value="">All statuses</option>
+          <option>PO_RECEIVED</option><option>PENDING_DELIVERY</option><option>PARTIALLY_RECEIVED</option>
+          <option>FULLY_RECEIVED</option><option>PARTIALLY_INVOICED</option><option>FULLY_INVOICED</option>
+          <option>CLOSED</option><option>OVERDUE</option><option>CANCELLED</option><option>EXCEPTION</option><option>DUPLICATE</option>
+        </select>
+        <label><input type="checkbox" id="f-overdue" onchange="loadTracker()" /> Overdue only</label>
+        <button class="btn" onclick="loadTracker()">Refresh</button>
+      </div>
+      <table id="tracker-table">
+        <thead><tr>
+          <th>PO Number</th><th>PO Date</th><th>Vendor</th><th>PO Value</th><th>Expected Delivery</th>
+          <th>Ordered</th><th>Received</th><th>Balance Qty</th><th>Received Value</th><th>Balance Value</th>
+          <th>Invoice</th><th>DN</th><th>CN</th><th>Net Value</th><th>Status</th><th>Days Pending</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div id="tab-exceptions" class="hidden">
+      <div class="filters">
+        <select id="e-status" onchange="loadExceptions()">
+          <option value="">All statuses</option>
+          <option>OPEN</option><option>IN_REVIEW</option><option>APPROVED</option><option>REJECTED</option><option>RESOLVED</option>
+        </select>
+        <button class="btn" onclick="loadExceptions()">Refresh</button>
+      </div>
+      <table id="exceptions-table">
+        <thead><tr><th>Type</th><th>Description</th><th>Severity</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div id="tab-vendors" class="hidden">
+      <table id="vendors-table">
+        <thead><tr><th>Vendor</th><th>PO Count</th><th>PO Value</th><th>Received</th><th>Pending</th><th>Overdue</th><th>Avg Overdue Days</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<script>
+const API = '';
+function token() { return localStorage.getItem('po_tracker_token'); }
+function authHeaders() { return { 'Authorization': 'Bearer ' + token() }; }
+
+async function login() {
+  const email = document.getElementById('login-email').value;
+  const password = document.getElementById('login-password').value;
+  const body = new URLSearchParams({ username: email, password });
+  try {
+    const resp = await fetch(API + '/api/auth/login', { method: 'POST', body });
+    if (!resp.ok) throw new Error('Invalid credentials');
+    const data = await resp.json();
+    localStorage.setItem('po_tracker_token', data.access_token);
+    document.getElementById('login-panel').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+    initApp();
+  } catch (e) {
+    document.getElementById('login-error').textContent = e.message;
+  }
+}
+function logout() {
+  localStorage.removeItem('po_tracker_token');
+  document.getElementById('login-panel').classList.remove('hidden');
+  document.getElementById('app').classList.add('hidden');
+}
+
+function showTab(name) {
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  ['tracker', 'exceptions', 'vendors'].forEach(t =>
+    document.getElementById('tab-' + t).classList.toggle('hidden', t !== name));
+  if (name === 'exceptions') loadExceptions();
+  if (name === 'vendors') loadVendors();
+}
+
+function money(v) { return v == null ? '-' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
+function dateStr(v) { return v || '-'; }
+
+async function loadKPIs() {
+  const resp = await fetch(API + '/api/dashboard/kpis', { headers: authHeaders() });
+  if (!resp.ok) return;
+  const k = await resp.json();
+  const items = [
+    ['Total POs', k.total_pos], ['Total PO Value', money(k.total_po_value)],
+    ['Open POs', k.open_pos], ['Overdue POs', k.overdue_pos],
+    ['Pending Delivery Value', money(k.pending_delivery_value)], ['Received Value', money(k.received_value)],
+    ['Open Exceptions', k.exceptions], ['Duplicate POs', k.duplicate_pos],
+  ];
+  document.getElementById('kpi-row').innerHTML = items.map(([label, value]) =>
+    `<div class="kpi"><div class="label">${label}</div><div class="value">${value}</div></div>`).join('');
+}
+
+async function loadTracker() {
+  const params = new URLSearchParams();
+  const vendor = document.getElementById('f-vendor').value;
+  const status = document.getElementById('f-status').value;
+  const overdue = document.getElementById('f-overdue').checked;
+  if (vendor) params.set('vendor', vendor);
+  if (status) params.set('status', status);
+  if (overdue) params.set('overdue_only', 'true');
+
+  const resp = await fetch(API + '/api/pos?' + params.toString(), { headers: authHeaders() });
+  if (!resp.ok) return;
+  const rows = await resp.json();
+  document.querySelector('#tracker-table tbody').innerHTML = rows.map(r => `
+    <tr>
+      <td>${r.po_number}</td><td>${dateStr(r.po_date)}</td><td>${r.vendor_name || '-'}</td>
+      <td>${money(r.po_value)}</td><td>${dateStr(r.expected_delivery)}</td>
+      <td>${money(r.ordered_qty)}</td><td>${money(r.received_qty)}</td><td>${money(r.balance_qty)}</td>
+      <td>${money(r.received_value)}</td><td>${money(r.balance_value)}</td>
+      <td>${money(r.invoice_value)}</td><td>${money(r.dn_value)}</td><td>${money(r.cn_value)}</td>
+      <td>${money(r.net_value)}</td>
+      <td><span class="status ${r.current_status}">${r.current_status}</span></td>
+      <td>${r.days_pending ?? '-'}</td>
+    </tr>`).join('');
+}
+
+async function loadExceptions() {
+  const params = new URLSearchParams();
+  const status = document.getElementById('e-status').value;
+  if (status) params.set('status_filter', status);
+  const resp = await fetch(API + '/api/exceptions?' + params.toString(), { headers: authHeaders() });
+  if (!resp.ok) return;
+  const rows = await resp.json();
+  document.querySelector('#exceptions-table tbody').innerHTML = rows.map(r => `
+    <tr>
+      <td>${r.exception_type}</td><td>${r.description || ''}</td>
+      <td class="severity-${r.severity}">${r.severity}</td><td>${r.status}</td>
+      <td>
+        ${r.status === 'OPEN' ? `
+          <button class="btn" onclick="resolveException('${r.exception_id}', 'APPROVE')">Approve</button>
+          <button class="btn" onclick="resolveException('${r.exception_id}', 'REJECT')">Reject</button>
+        ` : '-'}
+      </td>
+    </tr>`).join('');
+}
+
+async function resolveException(id, action) {
+  const resolution = prompt('Optional comment for this ' + action.toLowerCase() + ':') || '';
+  const resp = await fetch(API + `/api/exceptions/${id}/resolve`, {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, resolution }),
+  });
+  if (resp.ok) { loadExceptions(); loadKPIs(); }
+  else alert('Failed to resolve exception (check your role - needs procurement/finance/admin).');
+}
+
+async function loadVendors() {
+  const resp = await fetch(API + '/api/dashboard/vendor-analysis', { headers: authHeaders() });
+  if (!resp.ok) return;
+  const rows = await resp.json();
+  document.querySelector('#vendors-table tbody').innerHTML = rows.map(r => `
+    <tr>
+      <td>${r.vendor}</td><td>${r.po_count}</td><td>${money(r.po_value)}</td>
+      <td>${money(r.received)}</td><td>${money(r.pending)}</td>
+      <td>${r.overdue}</td><td>${r.avg_overdue_days}</td>
+    </tr>`).join('');
+}
+
+function exportExcel() {
+  fetch(API + '/api/export/po-tracker.xlsx', { headers: authHeaders() })
+    .then(r => r.blob())
+    .then(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'po_tracker.xlsx'; a.click();
+      URL.revokeObjectURL(url);
+    });
+}
+
+function initApp() {
+  loadKPIs();
+  loadTracker();
+}
+
+if (token()) {
+  document.getElementById('login-panel').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  initApp();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,67 @@
+from __future__ import annotations
+
+import os
+
+from fastapi import Depends, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from sqlalchemy.orm import Session
+
+from .api.routers import auth, dashboard, documents, emails, exceptions, export, grns, invoices, notes, pos, search
+from .db import Base, engine, get_db
+from .gmail.client import GmailClient
+from .gmail.ingest import poll_and_ingest
+from .models import OAuthToken
+from .config import settings
+from .pipeline import process_document
+from .security import require_admin
+
+app = FastAPI(title="Automated PO Tracker", version="0.1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.on_event("startup")
+def on_startup() -> None:
+    Base.metadata.create_all(bind=engine)
+    os.makedirs(settings.ATTACHMENT_STORAGE_DIR, exist_ok=True)
+
+
+for router in (auth.router, emails.router, documents.router, pos.router, grns.router,
+               invoices.router, notes.router, export.router, search.router, dashboard.router,
+               exceptions.router):
+    app.include_router(router)
+
+frontend_dir = os.path.join(os.path.dirname(__file__), "..", "..", "frontend")
+if os.path.isdir(frontend_dir):
+    app.mount("/dashboard", StaticFiles(directory=frontend_dir, html=True), name="dashboard")
+
+
+@app.get("/api/health")
+def health() -> dict:
+    return {"status": "ok"}
+
+
+@app.post("/api/ingest/run", dependencies=[Depends(require_admin)])
+def run_ingest_now(mailbox_email: str, db: Session = Depends(get_db)) -> dict:
+    """Manually triggers one ingestion + processing cycle for the given
+    connected mailbox. The scheduled worker (worker/tasks.py) does this
+    automatically every GMAIL_POLL_INTERVAL_SECONDS in production."""
+    token_record = (
+        db.query(OAuthToken)
+        .filter(OAuthToken.provider == "gmail", OAuthToken.mailbox_email == mailbox_email)
+        .first()
+    )
+    if not token_record:
+        return {"error": f"No connected Gmail mailbox for {mailbox_email}. Call /api/auth/gmail/authorize first."}
+
+    client = GmailClient(db, token_record)
+    new_documents = poll_and_ingest(db, client, settings.GMAIL_QUERY)
+    for doc in new_documents:
+        process_document(db, doc)
+    return {"ingested_documents": len(new_documents)}
