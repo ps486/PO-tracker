@@ -44,8 +44,13 @@ if not exist ".venv\.install_complete" (
         pause
         exit /b 1
     )
-    .venv\Scripts\pip install --upgrade pip -q
-    .venv\Scripts\pip install -r requirements.txt -q
+    REM Calling pip.exe directly to upgrade itself can fail on Windows with
+    REM "To modify pip, please run: python.exe -m pip install --upgrade pip"
+    REM - it can't safely overwrite its own running executable file. Running
+    REM it as "python -m pip" instead avoids that entirely, and we don't stop
+    REM the setup if this optional upgrade step fails either way.
+    .venv\Scripts\python.exe -m pip install --upgrade pip -q
+    .venv\Scripts\python.exe -m pip install -r requirements.txt -q
     if errorlevel 1 (
         echo.
         echo Installing the required packages failed - check the messages above.

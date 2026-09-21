@@ -37,8 +37,10 @@ if [ ! -f ".venv/.install_complete" ]; then
         read -p "Press Enter to close this window..."
         exit 1
     fi
-    ./.venv/bin/pip install --upgrade pip -q
-    if ! ./.venv/bin/pip install -r requirements.txt -q; then
+    # Using "python -m pip" rather than calling pip's own executable avoids a
+    # known failure where pip can't overwrite its own running file mid-upgrade.
+    ./.venv/bin/python -m pip install --upgrade pip -q
+    if ! ./.venv/bin/python -m pip install -r requirements.txt -q; then
         echo
         echo "Installing the required packages failed - check the messages above."
         echo "Make sure you're connected to the internet, then try again."
