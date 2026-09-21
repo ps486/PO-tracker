@@ -16,6 +16,14 @@ fi
 if [ ! -d ".venv" ]; then
     echo "First-time setup - this takes a minute..."
     $PYTHON -m venv .venv
+    if [ ! -f "./.venv/bin/python" ]; then
+        echo
+        echo "Could not create the Python environment - you likely need the venv module:"
+        echo "  sudo apt install python3-venv   (Debian/Ubuntu)"
+        echo "Then run this again."
+        read -p "Press Enter to close this window..."
+        exit 1
+    fi
     ./.venv/bin/pip install --upgrade pip -q
     ./.venv/bin/pip install -r requirements.txt -q
 fi
