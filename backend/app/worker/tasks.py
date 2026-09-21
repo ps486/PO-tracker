@@ -16,6 +16,7 @@ import logging
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 
+from .. import runtime_config
 from ..config import settings
 from ..db import SessionLocal
 from ..gmail.client import GmailClient
@@ -34,7 +35,7 @@ def poll_all_mailboxes() -> None:
         for token_record in tokens:
             try:
                 client = GmailClient(db, token_record)
-                new_documents = poll_and_ingest(db, client, settings.GMAIL_QUERY)
+                new_documents = poll_and_ingest(db, client, runtime_config.GMAIL_QUERY)
                 for doc in new_documents:
                     process_document(db, doc)
                 logger.info("Processed %d new document(s) for %s", len(new_documents), token_record.mailbox_email)
@@ -56,6 +57,12 @@ def daily_summary() -> None:
 
 
 def main() -> None:
+    db = SessionLocal()
+    try:
+        runtime_config.load_from_db(db)  # this is a separate process from the API - settings saved via the dashboard live in the DB, not this process's env vars
+    finally:
+        db.close()
+
     scheduler = BlockingScheduler()
     scheduler.add_job(poll_all_mailboxes, "interval", seconds=settings.GMAIL_POLL_INTERVAL_SECONDS, id="poll_gmail")
     scheduler.add_job(daily_summary, "cron", hour=18, minute=0, id="daily_summary")

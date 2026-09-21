@@ -145,6 +145,19 @@ class OAuthToken(Base, TimestampMixin):
     token_expiry = Column(DateTime, nullable=True)
 
 
+class AppSetting(Base, TimestampMixin):
+    """Key-value store for settings that would otherwise require editing a
+    .env file - lets a non-technical local user paste API keys into the
+    dashboard instead of a text editor. Secret values are stored encrypted
+    (same Fernet scheme as OAuthToken)."""
+
+    __tablename__ = "app_settings"
+
+    key = Column(String, primary_key=True)
+    value = Column(Text, nullable=True)
+    is_secret = Column(Boolean, default=False, nullable=False)
+
+
 class Vendor(Base, TimestampMixin):
     __tablename__ = "vendors"
 

@@ -15,16 +15,14 @@ from typing import Any
 
 import anthropic
 
-from ..config import settings
-
-_client: anthropic.Anthropic | None = None
+from .. import runtime_config
 
 
 def _get_client() -> anthropic.Anthropic:
-    global _client
-    if _client is None:
-        _client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
-    return _client
+    # Not cached: the key can change at any time via the Settings screen
+    # (runtime_config.save()), and constructing the client does no network
+    # I/O, so there's no cost to reading the current key on every call.
+    return anthropic.Anthropic(api_key=runtime_config.ANTHROPIC_API_KEY)
 
 
 def _image_block(png_bytes: bytes) -> dict:
@@ -58,7 +56,7 @@ def call_structured(
     JSON (still validated downstream by pydantic - never trust blindly)."""
     client = _get_client()
     response = client.messages.create(
-        model=settings.AI_MODEL,
+        model=runtime_config.AI_MODEL,
         max_tokens=max_tokens,
         system=system_prompt,
         tools=[{"name": tool_name, "description": f"Return {tool_name} data.", "input_schema": tool_schema}],

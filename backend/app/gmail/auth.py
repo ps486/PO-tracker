@@ -17,6 +17,7 @@ from googleapiclient.discovery import build
 
 from sqlalchemy.orm import Session
 
+from .. import runtime_config
 from ..config import settings
 from ..models import OAuthToken
 
@@ -40,15 +41,15 @@ def decrypt(value: str) -> str:
 def build_flow(state: str | None = None) -> Flow:
     client_config = {
         "web": {
-            "client_id": settings.GOOGLE_CLIENT_ID,
-            "client_secret": settings.GOOGLE_CLIENT_SECRET,
+            "client_id": runtime_config.GOOGLE_CLIENT_ID,
+            "client_secret": runtime_config.GOOGLE_CLIENT_SECRET,
             "auth_uri": "https://accounts.google.com/o/oauth2/auth",
             "token_uri": "https://oauth2.googleapis.com/token",
-            "redirect_uris": [settings.GOOGLE_OAUTH_REDIRECT_URI],
+            "redirect_uris": [runtime_config.GOOGLE_OAUTH_REDIRECT_URI],
         }
     }
     return Flow.from_client_config(
-        client_config, scopes=SCOPES, redirect_uri=settings.GOOGLE_OAUTH_REDIRECT_URI, state=state
+        client_config, scopes=SCOPES, redirect_uri=runtime_config.GOOGLE_OAUTH_REDIRECT_URI, state=state
     )
 
 
@@ -96,8 +97,8 @@ def credentials_from_token_record(record: OAuthToken) -> Credentials:
         token=decrypt(record.encrypted_access_token) if record.encrypted_access_token else None,
         refresh_token=decrypt(record.encrypted_refresh_token),
         token_uri="https://oauth2.googleapis.com/token",
-        client_id=settings.GOOGLE_CLIENT_ID,
-        client_secret=settings.GOOGLE_CLIENT_SECRET,
+        client_id=runtime_config.GOOGLE_CLIENT_ID,
+        client_secret=runtime_config.GOOGLE_CLIENT_SECRET,
         scopes=SCOPES,
     )
 

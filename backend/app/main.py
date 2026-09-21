@@ -7,8 +7,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
-from .api.routers import auth, dashboard, documents, emails, exceptions, export, grns, invoices, notes, pos, search
-from .db import Base, engine, get_db
+from .api.routers import (
+    auth, dashboard, documents, emails, exceptions, export, grns, invoices, notes, pos, search, settings as settings_router,
+)
+from . import runtime_config
+from .db import Base, SessionLocal, engine, get_db
 from .gmail.client import GmailClient
 from .gmail.ingest import poll_and_ingest
 from .models import OAuthToken
@@ -30,11 +33,16 @@ app.add_middleware(
 def on_startup() -> None:
     Base.metadata.create_all(bind=engine)
     os.makedirs(settings.ATTACHMENT_STORAGE_DIR, exist_ok=True)
+    db = SessionLocal()
+    try:
+        runtime_config.load_from_db(db)
+    finally:
+        db.close()
 
 
 for router in (auth.router, emails.router, documents.router, pos.router, grns.router,
                invoices.router, notes.router, export.router, search.router, dashboard.router,
-               exceptions.router):
+               exceptions.router, settings_router.router):
     app.include_router(router)
 
 frontend_dir = os.path.join(os.path.dirname(__file__), "..", "..", "frontend")
@@ -61,7 +69,7 @@ def run_ingest_now(mailbox_email: str, db: Session = Depends(get_db)) -> dict:
         return {"error": f"No connected Gmail mailbox for {mailbox_email}. Call /api/auth/gmail/authorize first."}
 
     client = GmailClient(db, token_record)
-    new_documents = poll_and_ingest(db, client, settings.GMAIL_QUERY)
+    new_documents = poll_and_ingest(db, client, runtime_config.GMAIL_QUERY)
     for doc in new_documents:
         process_document(db, doc)
     return {"ingested_documents": len(new_documents)}

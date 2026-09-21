@@ -16,6 +16,7 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
+from . import runtime_config
 from .config import settings
 from .extraction.classifier import classify_document
 from .extraction.parsers import parse_file
@@ -57,7 +58,7 @@ def _save_audit(db: Session, document: Document, stage: str, raw: dict, confiden
         ExtractionAudit(
             document_id=document.document_id,
             stage=stage,
-            model=settings.AI_MODEL,
+            model=runtime_config.AI_MODEL,
             raw_response=raw,
             overall_confidence=Decimal(str(confidence)) if confidence is not None else None,
         )

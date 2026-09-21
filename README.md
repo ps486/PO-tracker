@@ -1,6 +1,6 @@
 # Automated PO Tracker
 
-Connects to a company Gmail mailbox, reads vendor emails, downloads attachments,
+Connects to a Gmail mailbox, reads vendor emails, downloads attachments,
 classifies each one (PO / GRN / Invoice / Debit Note / Credit Note / Order
 Confirmation / other), extracts structured data with AI, and maintains a
 centralized, automatically-computed PO tracker with a duplicate-detection and
@@ -8,12 +8,86 @@ exception-review workflow.
 
 See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the full system design (schema,
 Gmail integration, AI extraction approach, matching algorithm, security model,
-phasing, cost estimate). This README covers running the Phase 1 MVP.
+phasing, cost estimate).
+
+## Two ways to run it
+
+1. **Local Mode** (recommended for most people) - runs entirely on your own
+   computer. No hosting account, no server, no Postgres, no `.env` file to
+   edit. A single file holds all your data. This is the fastest way to get
+   started and is what the rest of this section covers.
+2. **Server deployment** - for running it 24/7 so it keeps working even when
+   your computer is off, or for a team sharing one instance. See
+   [Server deployment](#server-deployment) below.
+
+## Running it locally
+
+**Requires:** Python 3.11+ installed once ([python.org/downloads](https://www.python.org/downloads/) -
+on Windows, tick "Add Python to PATH" during install). Nothing else to
+install manually - the first run does it for you.
+
+1. Download this project's code to a folder on your computer (or `git clone` it).
+2. Double-click the starter file for your operating system:
+   - **Windows:** `Start PO Tracker.bat`
+   - **Mac:** `Start PO Tracker.command` (right-click → Open the very first
+     time, since it's not from the App Store - macOS will ask you to confirm once)
+   - **Linux:** `start_po_tracker.sh`
+3. The first time, a black window appears and installs everything (needs
+   internet, takes 1-2 minutes). Every time after that, it starts in a few
+   seconds.
+4. Your browser opens automatically to the dashboard. **Create Your
+   Account** the first time - that's your login from now on.
+5. Click the **Settings** tab and paste in your two keys (see below for where
+   to get them). Click **Save Settings**.
+6. Click **+ Connect Gmail** in the bar under the header, and approve access
+   with the Gmail account you want monitored.
+7. In Gmail, create a filter that labels vendor emails `po-tracker` (Settings
+   → Filters and Blocked Addresses → Create a new filter) - only labeled mail
+   gets read.
+8. Click **Run Ingestion Now** next to your connected mailbox to process
+   emails on demand. Since your computer isn't running 24/7 like a server,
+   this "check now" button is how Local Mode stays up to date - click it
+   whenever you want the tracker refreshed.
+
+To stop the app, close the black window (or press Ctrl+C in it). To start it
+again later, just double-click the starter file again - nothing needs
+reinstalling.
+
+Everything - your database, your downloaded attachments, your saved keys - is
+stored in a folder called `po_tracker_data` next to the project files. Back
+that folder up if you want to keep your data safe; delete it if you ever want
+to start completely fresh.
+
+### The two keys you need (both free to set up, one has usage costs)
+
+**Anthropic API key** (pays for the AI that reads your documents):
+1. Go to **console.anthropic.com**, sign up/log in.
+2. **API Keys → Create Key**, copy it.
+3. Add a small amount of billing credit under Settings → Billing.
+
+**Google Gmail access** (lets the app read - never send or delete - your mail):
+1. Go to **console.cloud.google.com**, create a project.
+2. Search **Gmail API** at the top, click it, click **Enable**.
+3. **APIs & Services → OAuth consent screen** → User type **External** →
+   fill in the app name and your email → save through the remaining screens →
+   under **Test users**, add the Gmail address you'll monitor.
+4. **APIs & Services → Credentials → Create Credentials → OAuth client ID** →
+   type **Web application**.
+5. Open the PO Tracker **Settings** tab first (step 5 above) to see your exact
+   **Redirect URI** (with a Copy button) - paste that into **Authorized
+   redirect URIs** here, then click Create.
+6. Copy the **Client ID** and **Client Secret** it shows you into the PO
+   Tracker Settings tab.
+
+The first time you click **+ Connect Gmail**, Google will show a "Google
+hasn't verified this app" warning - click **Advanced → Go to PO Tracker
+(unsafe)**. This is normal for a private app only you use; it just means
+Google hasn't reviewed it, not that anything is wrong.
 
 ## What's implemented (Phase 1 MVP, plus the Phase 2/3 matching engine)
 
-- Gmail OAuth connection + polling worker that downloads every supported
-  attachment (PDF/XLS/XLSX/CSV/DOC/DOCX/JPG/PNG/TIFF) from matching emails.
+- Gmail OAuth connection + on-demand or scheduled polling that downloads
+  every supported attachment (PDF/XLS/XLSX/CSV/DOC/DOCX/JPG/PNG/TIFF).
 - AI classification + structured extraction (Claude), schema-validated before
   anything touches the database.
 - Business-rule validation (arithmetic checks, GSTIN format, missing fields,
@@ -26,73 +100,40 @@ phasing, cost estimate). This README covers running the Phase 1 MVP.
 - PO status computed automatically from underlying transactions, including
   partial-delivery line tracking and overdue detection.
 - Exception queue with approve/reject/correct + full audit log.
-- REST API (FastAPI), a minimal dashboard (`frontend/index.html`), and Excel
-  export - Excel is a reporting format only, never the database.
+- REST API (FastAPI), a dashboard (`frontend/index.html`) including a
+  no-terminal first-run setup and a Settings screen for pasting API
+  keys, and Excel export - Excel is a reporting format only, never the database.
 
-## Prerequisites
+## Server deployment
 
-- Python 3.11+
-- PostgreSQL 14+ (or use `docker-compose up db` for a local instance)
-- A Google Cloud project with the Gmail API enabled and an OAuth 2.0 "Web
-  application" client (Console -> APIs & Services -> Credentials)
-- An Anthropic API key
+For a shared/always-on instance instead of Local Mode:
 
-## Setup
+**Prerequisites:** Python 3.11+, PostgreSQL 14+ (or `docker-compose up -d db`),
+a Google Cloud OAuth client (see above, using your real domain's redirect URI
+instead of `127.0.0.1`), an Anthropic API key.
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env   # fill in DATABASE_URL, GOOGLE_CLIENT_ID/SECRET, ANTHROPIC_API_KEY
-```
-
-Start Postgres (or point `DATABASE_URL` at an existing instance):
-
-```bash
-docker-compose up -d db
-```
-
-Run migrations:
-
-```bash
+cp .env.example .env   # fill in DATABASE_URL and SECRET_KEY at minimum -
+                        # ANTHROPIC_API_KEY/GOOGLE_CLIENT_ID/SECRET can also be
+                        # left blank here and pasted into the Settings tab instead
 alembic upgrade head
+uvicorn backend.app.main:app --host 0.0.0.0 --port 8000
 ```
 
-Start the API:
+Put the app behind HTTPS (a reverse proxy like nginx/Caddy with Let's
+Encrypt), restrict CORS in `main.py` to your real domain, and run the
+background worker so ingestion happens automatically all day instead of only
+when someone clicks the button:
 
 ```bash
-uvicorn backend.app.main:app --reload
+python -m backend.app.worker.tasks
 ```
 
-Open the dashboard at `http://localhost:8000/dashboard/` (API at
-`http://localhost:8000/api`, interactive docs at `http://localhost:8000/docs`).
-The very first time it's opened (no user exists yet), it shows a **Create Your
-Account** form instead of a login form - fill that in once and you're the
-admin. No script, no terminal command. Every visit after that shows the normal
-login screen.
-
-## Connecting Gmail
-
-From the dashboard (as an admin), click **+ Connect Gmail** in the bar under
-the header. That takes you to Google's consent screen; after you approve
-read-only access, Google redirects back and the mailbox appears as a chip
-with a **Run Ingestion Now** button (useful for testing without waiting for
-the poll interval). Multiple mailboxes can be connected the same way.
-
-Under the hood: `GET /api/auth/gmail/authorize` (admin-only) returns a Google
-consent URL; Google redirects to `/api/auth/gmail/callback` with a `code`,
-which is exchanged for tokens - the mailbox address itself is discovered from
-Gmail's own profile API at that point (Google's redirect never tells us which
-account was granted, so we ask). `GET /api/auth/gmail/mailboxes` lists
-connected mailboxes, and `POST /api/ingest/run?mailbox_email=...` runs one
-ingestion cycle on demand.
-
-In production, run the background worker so ingestion happens automatically
-throughout the day rather than only when you click the button:
-`python -m backend.app.worker.tasks` (or `docker-compose up worker`).
-
-`GMAIL_QUERY` in `.env` controls which mail is scanned (default:
-`label:po-tracker newer_than:7d` - create a Gmail label/filter to route vendor
-mail into it).
+`docker-compose.yml` runs `db` + `api` + `worker` together if you prefer
+containers. `GMAIL_QUERY` (env var or Settings tab) controls which mail is
+scanned (default: `label:po-tracker newer_than:7d`).
 
 ## Running tests
 
@@ -112,8 +153,11 @@ overdue, closed), and end-to-end pipeline runs with the AI/Gmail calls mocked
 
 ```
 ARCHITECTURE.md          Pre-build design doc (schema, integration, matching, security, phasing, cost)
+run_local.py              Local Mode launcher (SQLite, auto-opens browser)
+Start PO Tracker.bat/.command, start_po_tracker.sh   Double-click wrappers around run_local.py
 backend/app/
   models.py              SQLAlchemy models (EMAILS, DOCUMENTS, PO_MASTER, PO_LINES, GRN, ...)
+  runtime_config.py       Settings that can be pasted in the dashboard instead of a .env file
   schemas.py              Pydantic schemas - the AI-output <-> DB boundary
   gmail/                  OAuth, Gmail API client, email/attachment ingestion
   extraction/             File parsers (PDF/Excel/DOCX/image) + AI classification/extraction
@@ -121,10 +165,10 @@ backend/app/
   matching/               Duplicate PO detection + 5-level GRN/Invoice/Note matching engine
   status/                 PO status computed from underlying transactions
   pipeline.py             Orchestrates the full per-document flow
-  api/routers/            FastAPI endpoints (pos, documents, emails, exceptions, dashboard, export, search, auth)
+  api/routers/            FastAPI endpoints (pos, documents, emails, exceptions, dashboard, export, search, auth, settings)
   export/                 Excel export (reporting only)
-  worker/tasks.py         Scheduled Gmail polling + daily summary
-frontend/index.html       Minimal PO tracker dashboard (tracker, exceptions, vendor analysis)
+  worker/tasks.py         Scheduled Gmail polling + daily summary (optional - Local Mode uses "Run Ingestion Now" instead)
+frontend/index.html       Dashboard (tracker, exceptions, vendor analysis, settings)
 backend/tests/            pytest suite (AI/Gmail calls mocked)
-alembic/                  DB migrations
+alembic/                  DB migrations (for server deployment; Local Mode creates tables automatically)
 ```

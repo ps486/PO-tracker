@@ -4,6 +4,7 @@ __pycache__/
 .venv/
 venv/
 data/
+po_tracker_data/
 *.db
 .pytest_cache/
 .DS_Store

@@ -46,6 +46,16 @@
   .toast { position: fixed; top: 16px; right: 16px; padding: 12px 16px; border-radius: 8px; font-size: 13px; z-index: 100; }
   .toast.ok { background: rgba(61,220,151,.15); color: var(--ok); border: 1px solid var(--ok); }
   .toast.err { background: rgba(255,107,107,.15); color: var(--danger); border: 1px solid var(--danger); }
+  .settings-form { max-width: 560px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 24px; }
+  .settings-form h3 { margin: 20px 0 4px; font-size: 14px; }
+  .settings-form h3:first-child { margin-top: 0; }
+  .settings-form label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+  .settings-form input { width: 100%; }
+  .field-hint { font-size: 12px; color: var(--muted); margin: 0 0 8px; }
+  .field-hint-inline { font-weight: normal; color: var(--muted); }
+  .field-status { font-size: 11px; padding: 1px 6px; border-radius: 8px; }
+  .field-status.set { background: rgba(61,220,151,.15); color: var(--ok); }
+  .field-status.unset { background: rgba(245,166,35,.15); color: var(--warn); }
 </style>
 </head>
 <body>
@@ -81,6 +91,7 @@
     <button data-tab="tracker" class="active" onclick="showTab('tracker')">PO Tracker</button>
     <button data-tab="exceptions" onclick="showTab('exceptions')">Exceptions</button>
     <button data-tab="vendors" onclick="showTab('vendors')">Vendor Analysis</button>
+    <button data-tab="settings" id="settings-tab-btn" class="hidden" onclick="showTab('settings')">Settings</button>
   </nav>
   <main>
     <div class="kpi-row" id="kpi-row"></div>
@@ -126,6 +137,35 @@
         <thead><tr><th>Vendor</th><th>PO Count</th><th>PO Value</th><th>Received</th><th>Pending</th><th>Overdue</th><th>Avg Overdue Days</th></tr></thead>
         <tbody></tbody>
       </table>
+    </div>
+
+    <div id="tab-settings" class="hidden">
+      <div class="settings-form">
+        <h3>AI extraction</h3>
+        <p class="field-hint">From <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a> - API Keys.</p>
+        <label>Anthropic API Key <span id="status-anthropic" class="field-status"></span></label>
+        <input id="s-anthropic-key" type="password" placeholder="sk-ant-..." />
+
+        <h3>Gmail connection</h3>
+        <p class="field-hint">From <a href="https://console.cloud.google.com" target="_blank" rel="noopener">console.cloud.google.com</a> - APIs &amp; Services → Credentials → OAuth client ID (Web application).</p>
+        <label>Google Client ID <span id="status-client-id" class="field-status"></span></label>
+        <input id="s-google-client-id" placeholder="xxxxxxxx.apps.googleusercontent.com" />
+        <label>Google Client Secret <span id="status-client-secret" class="field-status"></span></label>
+        <input id="s-google-client-secret" type="password" placeholder="GOCSPX-..." />
+        <label>Redirect URI <span class="field-hint-inline">(paste this exact value into Google's "Authorized redirect URIs")</span></label>
+        <div style="display:flex; gap:8px;">
+          <input id="s-redirect-uri" readonly />
+          <button class="btn" onclick="copyRedirectUri()">Copy</button>
+        </div>
+
+        <h3>Which emails to read</h3>
+        <p class="field-hint">Only emails matching this Gmail search are scanned - use a label (see the setup guide) to keep this scoped to vendor mail.</p>
+        <label>Gmail search query</label>
+        <input id="s-gmail-query" placeholder="label:po-tracker newer_than:7d" />
+
+        <button class="btn primary" onclick="saveSettings()" style="margin-top:14px;">Save Settings</button>
+        <div class="error" id="settings-error"></div>
+      </div>
     </div>
   </main>
 </div>
@@ -208,8 +248,10 @@ async function connectGmail() {
 
 async function loadGmailBar() {
   const bar = document.getElementById('gmail-bar');
-  if (role() !== 'ADMIN') { bar.classList.add('hidden'); return; }
+  const settingsBtn = document.getElementById('settings-tab-btn');
+  if (role() !== 'ADMIN') { bar.classList.add('hidden'); settingsBtn.classList.add('hidden'); return; }
   bar.classList.remove('hidden');
+  settingsBtn.classList.remove('hidden');
 
   const resp = await fetch(API + '/api/auth/gmail/mailboxes', { headers: authHeaders() });
   const mailboxes = resp.ok ? await resp.json() : [];
@@ -242,6 +284,57 @@ async function runIngestNow(mailboxEmail) {
   if (!document.getElementById('tab-tracker').classList.contains('hidden')) loadTracker();
 }
 
+function fieldStatus(elId, isSet) {
+  const el = document.getElementById(elId);
+  el.textContent = isSet ? 'configured' : 'not set';
+  el.className = 'field-status ' + (isSet ? 'set' : 'unset');
+}
+
+async function loadSettings() {
+  const resp = await fetch(API + '/api/settings', { headers: authHeaders() });
+  if (!resp.ok) return;
+  const s = await resp.json();
+  fieldStatus('status-anthropic', s.anthropic_api_key_set);
+  fieldStatus('status-client-id', s.google_client_id_set);
+  fieldStatus('status-client-secret', s.google_client_secret_set);
+  document.getElementById('s-google-client-id').value = s.google_client_id || '';
+  document.getElementById('s-redirect-uri').value = s.google_oauth_redirect_uri || (window.location.origin + '/api/auth/gmail/callback');
+  document.getElementById('s-gmail-query').value = s.gmail_query || '';
+}
+
+function copyRedirectUri() {
+  const input = document.getElementById('s-redirect-uri');
+  input.select();
+  navigator.clipboard.writeText(input.value).then(
+    () => showToast('Copied - paste this into Google Cloud Console.', true),
+    () => showToast('Could not copy automatically - select and copy manually.', false),
+  );
+}
+
+async function saveSettings() {
+  const payload = {
+    anthropic_api_key: document.getElementById('s-anthropic-key').value || null,
+    google_client_id: document.getElementById('s-google-client-id').value || null,
+    google_client_secret: document.getElementById('s-google-client-secret').value || null,
+    google_oauth_redirect_uri: document.getElementById('s-redirect-uri').value || null,
+    gmail_query: document.getElementById('s-gmail-query').value || null,
+  };
+  const resp = await fetch(API + '/api/settings', {
+    method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok) {
+    document.getElementById('settings-error').textContent = 'Could not save settings.';
+    return;
+  }
+  document.getElementById('settings-error').textContent = '';
+  document.getElementById('s-anthropic-key').value = '';
+  document.getElementById('s-google-client-secret').value = '';
+  showToast('Settings saved.', true);
+  loadSettings();
+  loadGmailBar();
+}
+
 function handleGmailRedirect() {
   const params = new URLSearchParams(window.location.search);
   if (params.has('gmail_connected')) {
@@ -256,10 +349,11 @@ function handleGmailRedirect() {
 
 function showTab(name) {
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
-  ['tracker', 'exceptions', 'vendors'].forEach(t =>
+  ['tracker', 'exceptions', 'vendors', 'settings'].forEach(t =>
     document.getElementById('tab-' + t).classList.toggle('hidden', t !== name));
   if (name === 'exceptions') loadExceptions();
   if (name === 'vendors') loadVendors();
+  if (name === 'settings') loadSettings();
 }
 
 function money(v) { return v == null ? '-' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
