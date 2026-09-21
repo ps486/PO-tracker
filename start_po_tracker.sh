@@ -13,7 +13,10 @@ if ! command -v $PYTHON &> /dev/null; then
     exit 1
 fi
 
-if [ ! -d ".venv" ]; then
+# Checking for ".venv/.install_complete" (not just the folder existing) means
+# a previous attempt that got interrupted partway doesn't get mistaken for a
+# finished install and silently skipped forever.
+if [ ! -f ".venv/.install_complete" ]; then
     echo "First-time setup - this takes a minute..."
     $PYTHON -m venv .venv
     if [ ! -f "./.venv/bin/python" ]; then
@@ -25,7 +28,14 @@ if [ ! -d ".venv" ]; then
         exit 1
     fi
     ./.venv/bin/pip install --upgrade pip -q
-    ./.venv/bin/pip install -r requirements.txt -q
+    if ! ./.venv/bin/pip install -r requirements.txt -q; then
+        echo
+        echo "Installing the required packages failed - check the messages above."
+        echo "Make sure you're connected to the internet, then try again."
+        read -p "Press Enter to close this window..."
+        exit 1
+    fi
+    touch ".venv/.install_complete"
 fi
 
 ./.venv/bin/python run_local.py

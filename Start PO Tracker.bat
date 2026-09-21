@@ -28,7 +28,11 @@ if errorlevel 1 (
     exit /b 1
 )
 
-if not exist ".venv" (
+REM Checking for ".venv\.install_complete" (not just ".venv" existing) means
+REM a previous attempt that got interrupted partway - e.g. by the Python
+REM detection problems above - doesn't get mistaken for a finished install
+REM and silently skipped forever.
+if not exist ".venv\.install_complete" (
     echo First-time setup - this takes a minute...
     python -m venv .venv
     if not exist ".venv\Scripts\python.exe" (
@@ -42,6 +46,14 @@ if not exist ".venv" (
     )
     .venv\Scripts\pip install --upgrade pip -q
     .venv\Scripts\pip install -r requirements.txt -q
+    if errorlevel 1 (
+        echo.
+        echo Installing the required packages failed - check the messages above.
+        echo Make sure you're connected to the internet, then try again.
+        pause
+        exit /b 1
+    )
+    echo done > ".venv\.install_complete"
 )
 
 .venv\Scripts\python run_local.py
