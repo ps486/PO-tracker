@@ -142,9 +142,9 @@
     <div id="tab-settings" class="hidden">
       <div class="settings-form">
         <h3>AI extraction</h3>
-        <p class="field-hint">From <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a> - API Keys.</p>
-        <label>Anthropic API Key <span id="status-anthropic" class="field-status"></span></label>
-        <input id="s-anthropic-key" type="password" placeholder="sk-ant-..." />
+        <p class="field-hint">Free to get, from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>.</p>
+        <label>Gemini API Key <span id="status-gemini" class="field-status"></span></label>
+        <input id="s-gemini-key" type="password" placeholder="AIza..." />
 
         <h3>Gmail connection</h3>
         <p class="field-hint">From <a href="https://console.cloud.google.com" target="_blank" rel="noopener">console.cloud.google.com</a> - APIs &amp; Services → Credentials → OAuth client ID (Web application).</p>
@@ -311,7 +311,7 @@ async function loadSettings() {
   const resp = await fetch(API + '/api/settings', { headers: authHeaders() });
   if (!resp.ok) return;
   const s = await resp.json();
-  fieldStatus('status-anthropic', s.anthropic_api_key_set);
+  fieldStatus('status-gemini', s.gemini_api_key_set);
   fieldStatus('status-client-id', s.google_client_id_set);
   fieldStatus('status-client-secret', s.google_client_secret_set);
   document.getElementById('s-google-client-id').value = s.google_client_id || '';
@@ -330,7 +330,7 @@ function copyRedirectUri() {
 
 async function saveSettings() {
   const payload = {
-    anthropic_api_key: document.getElementById('s-anthropic-key').value || null,
+    gemini_api_key: document.getElementById('s-gemini-key').value || null,
     google_client_id: document.getElementById('s-google-client-id').value || null,
     google_client_secret: document.getElementById('s-google-client-secret').value || null,
     google_oauth_redirect_uri: document.getElementById('s-redirect-uri').value || null,
@@ -345,7 +345,7 @@ async function saveSettings() {
     return;
   }
   document.getElementById('settings-error').textContent = '';
-  document.getElementById('s-anthropic-key').value = '';
+  document.getElementById('s-gemini-key').value = '';
   document.getElementById('s-google-client-secret').value = '';
   showToast('Settings saved.', true);
   loadSettings();

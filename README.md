@@ -60,10 +60,11 @@ to start completely fresh.
 
 ### The two keys you need (both free to set up, one has usage costs)
 
-**Anthropic API key** (pays for the AI that reads your documents):
-1. Go to **console.anthropic.com**, sign up/log in.
-2. **API Keys → Create Key**, copy it.
-3. Add a small amount of billing credit under Settings → Billing.
+**Gemini API key** (free - powers the AI that reads your documents):
+1. Go to **aistudio.google.com/apikey**, sign in with a Google account.
+2. Click **Create API key**, copy it.
+3. Google's free tier is rate-limited (a cap on requests per minute/day) but
+   costs nothing - fine for personal/small-business volume.
 
 **Google Gmail access** (lets the app read - never send or delete - your mail):
 1. Go to **console.cloud.google.com**, create a project.
@@ -88,7 +89,7 @@ Google hasn't reviewed it, not that anything is wrong.
 
 - Gmail OAuth connection + on-demand or scheduled polling that downloads
   every supported attachment (PDF/XLS/XLSX/CSV/DOC/DOCX/JPG/PNG/TIFF).
-- AI classification + structured extraction (Claude), schema-validated before
+- AI classification + structured extraction (Gemini), schema-validated before
   anything touches the database.
 - Business-rule validation (arithmetic checks, GSTIN format, missing fields,
   negative/zero quantities, abnormal tax rates) - never silently "corrects" a
@@ -110,13 +111,13 @@ For a shared/always-on instance instead of Local Mode:
 
 **Prerequisites:** Python 3.11+, PostgreSQL 14+ (or `docker-compose up -d db`),
 a Google Cloud OAuth client (see above, using your real domain's redirect URI
-instead of `127.0.0.1`), an Anthropic API key.
+instead of `127.0.0.1`), a Gemini API key.
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt -r requirements-server.txt   # the second file adds the PostgreSQL driver
 cp .env.example .env   # fill in DATABASE_URL and SECRET_KEY at minimum -
-                        # ANTHROPIC_API_KEY/GOOGLE_CLIENT_ID/SECRET can also be
+                        # GEMINI_API_KEY/GOOGLE_CLIENT_ID/SECRET can also be
                         # left blank here and pasted into the Settings tab instead
 alembic upgrade head
 uvicorn backend.app.main:app --host 0.0.0.0 --port 8000

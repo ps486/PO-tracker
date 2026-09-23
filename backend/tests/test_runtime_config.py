@@ -6,16 +6,16 @@ from backend.app.models import AppSetting
 
 
 def test_save_persists_and_updates_in_memory_immediately(db):
-    runtime_config.save(db, ANTHROPIC_API_KEY="sk-ant-test123", GOOGLE_CLIENT_ID="client-abc")
-    assert runtime_config.ANTHROPIC_API_KEY == "sk-ant-test123"
+    runtime_config.save(db, GEMINI_API_KEY="AIza-test123", GOOGLE_CLIENT_ID="client-abc")
+    assert runtime_config.GEMINI_API_KEY == "AIza-test123"
     assert runtime_config.GOOGLE_CLIENT_ID == "client-abc"
 
 
 def test_secret_values_are_encrypted_at_rest(db):
-    runtime_config.save(db, ANTHROPIC_API_KEY="sk-ant-supersecret")
-    row = db.query(AppSetting).filter(AppSetting.key == "ANTHROPIC_API_KEY").first()
+    runtime_config.save(db, GEMINI_API_KEY="AIza-supersecret")
+    row = db.query(AppSetting).filter(AppSetting.key == "GEMINI_API_KEY").first()
     assert row.is_secret is True
-    assert row.value != "sk-ant-supersecret"  # stored encrypted, not plaintext
+    assert row.value != "AIza-supersecret"  # stored encrypted, not plaintext
 
 
 def test_non_secret_values_are_stored_plainly(db):
@@ -26,29 +26,29 @@ def test_non_secret_values_are_stored_plainly(db):
 
 
 def test_load_from_db_restores_values_simulating_a_restart(db):
-    runtime_config.save(db, ANTHROPIC_API_KEY="sk-ant-restart-test", GOOGLE_CLIENT_SECRET="GOCSPX-restart")
+    runtime_config.save(db, GEMINI_API_KEY="AIza-restart-test", GOOGLE_CLIENT_SECRET="GOCSPX-restart")
 
     # Simulate a fresh process: reset the in-memory globals, then reload.
-    runtime_config.ANTHROPIC_API_KEY = ""
+    runtime_config.GEMINI_API_KEY = ""
     runtime_config.GOOGLE_CLIENT_SECRET = ""
     runtime_config.load_from_db(db)
 
-    assert runtime_config.ANTHROPIC_API_KEY == "sk-ant-restart-test"
+    assert runtime_config.GEMINI_API_KEY == "AIza-restart-test"
     assert runtime_config.GOOGLE_CLIENT_SECRET == "GOCSPX-restart"
 
 
 def test_empty_values_do_not_overwrite_existing_settings(db):
-    runtime_config.save(db, ANTHROPIC_API_KEY="sk-ant-keep-me")
-    runtime_config.save(db, ANTHROPIC_API_KEY=None, GOOGLE_CLIENT_ID="new-client-id")
-    assert runtime_config.ANTHROPIC_API_KEY == "sk-ant-keep-me"
+    runtime_config.save(db, GEMINI_API_KEY="AIza-keep-me")
+    runtime_config.save(db, GEMINI_API_KEY=None, GOOGLE_CLIENT_ID="new-client-id")
+    assert runtime_config.GEMINI_API_KEY == "AIza-keep-me"
     assert runtime_config.GOOGLE_CLIENT_ID == "new-client-id"
 
 
 def test_status_never_exposes_secret_values(db):
-    runtime_config.save(db, ANTHROPIC_API_KEY="sk-ant-should-not-leak", GOOGLE_CLIENT_SECRET="GOCSPX-should-not-leak")
+    runtime_config.save(db, GEMINI_API_KEY="AIza-should-not-leak", GOOGLE_CLIENT_SECRET="GOCSPX-should-not-leak")
     result = runtime_config.status(db)
     dumped = str(result)
-    assert "sk-ant-should-not-leak" not in dumped
+    assert "AIza-should-not-leak" not in dumped
     assert "GOCSPX-should-not-leak" not in dumped
-    assert result["anthropic_api_key_set"] is True
+    assert result["gemini_api_key_set"] is True
     assert result["google_client_secret_set"] is True

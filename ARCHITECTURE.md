@@ -32,7 +32,7 @@ The MVP (Phase 1) implemented in this repository follows this design.
                                   ▼
                    ┌───────────────────────────────┐
                    │  AI Classification              │
-                   │  (Claude, structured JSON out)   │
+                   │  (Gemini, structured JSON out)   │
                    │  -> doc type, confidence, reason │
                    └──────────────┬───────────────────┘
                                   ▼
@@ -146,8 +146,8 @@ See `backend/app/models.py` for exact columns (they mirror section 7 of the spec
 
 ## 4. AI Extraction Approach
 
-Two-stage AI calls, both **schema-constrained** (Claude "tool use" / structured
-output — the model must return a specific JSON shape, no free text):
+Two-stage AI calls, both **schema-constrained** (Gemini's `response_json_schema`
+/ structured output — the model must return a specific JSON shape, no free text):
 
 1. **Classification** (`extraction/classifier.py`): given extracted text (and, for
    scanned/image documents, the page image(s) directly via multimodal input), the
@@ -162,7 +162,7 @@ once, then routed to EXCEPTIONS as `UNREADABLE_OR_MALFORMED_EXTRACTION` — it i
 never partially written.
 
 For scanned PDFs/images we do not use a separate OCR engine as the primary path —
-Claude's native document/image understanding reads the page directly, which avoids
+Gemini's native document/image understanding reads the page directly, which avoids
 compounding OCR errors with a second LLM pass over noisy OCR text. `pdfplumber` /
 `openpyxl` / `python-docx` are used first for machine-readable files because they
 are free, deterministic and higher-precision for exact numbers; the AI call still
@@ -210,7 +210,7 @@ for a human to pick from.
   - `procurement` — full read/write on PO/GRN data, can approve/reject exceptions,
     cannot manage users or mailbox connections.
   - `viewer` — read-only across tracker, dashboard, search; no exception actions.
-- **Secrets**: Gmail OAuth tokens and the Anthropic API key are stored only in
+- **Secrets**: Gmail OAuth tokens and the Gemini API key are stored only in
   environment variables / an encrypted secrets column, never logged, never
   returned by any API response.
 - **Data protection**: attachments and extracted PII (GSTIN, PAN, addresses) are
@@ -242,28 +242,31 @@ for a human to pick from.
 | Postgres (managed, small instance, e.g. RDS/Cloud SQL db-f1-small) | $25–60 |
 | App hosting (API + worker, 1–2 small containers) | $20–50 |
 | Object storage for attachments (S3/GCS, tens of GB) | $1–5 |
-| AI extraction (Claude, ~2 calls/doc avg, ~150 docs/day × 30) | $40–150 (varies with document size/pages; large scanned multi-page POs cost more per call) |
+| AI extraction (Gemini, ~2 calls/doc avg, ~150 docs/day × 30) | $0 within the free tier's rate limits; low-single-digit $ per 1,000 docs on the paid tier beyond that |
 | Gmail API | Free (quota-based, no cost at this volume) |
 | Misc (logging, backups, monitoring) | $10–20 |
-| **Total** | **~$100–300/month** at this volume |
+| **Total** | **~$60–140/month** at this volume (server deployment; Local Mode has no hosting/Postgres cost at all) |
 
 Cost scales primarily with AI extraction volume/document size; using
 machine-readable-file fast paths (Excel/CSV/text PDF) instead of image-based calls
-where possible keeps this down.
+where possible keeps this down. Gemini's free tier has per-minute/per-day request
+caps - fine for personal or small-business volume, but a paid tier or a different
+provider may be worth it at higher volume.
 
 ## 9. Exact APIs / Services Required
 
 - **Gmail API** (`gmail.googleapis.com`) — OAuth 2.0 client credentials from Google
   Cloud Console (scopes: `https://www.googleapis.com/auth/gmail.readonly`).
-- **Anthropic API** (Claude) — for classification + structured extraction +
-  Level-5 fuzzy matching assistance. Requires `ANTHROPIC_API_KEY`.
-- **PostgreSQL** — primary datastore.
+- **Gemini API** (`generativelanguage.googleapis.com`) — for classification +
+  structured extraction + Level-5 fuzzy matching assistance. Requires
+  `GEMINI_API_KEY` (free tier available from aistudio.google.com/apikey).
+- **PostgreSQL** — primary datastore for Server deployment (Local Mode uses SQLite).
 - **Object storage** — local filesystem in MVP; S3/GCS/Azure Blob in production.
 - **Python libraries**: `fastapi`, `sqlalchemy`, `alembic`, `pydantic`,
-  `google-api-python-client` + `google-auth-oauthlib` (Gmail), `anthropic`,
-  `pdfplumber`, `pymupdf` (fallback PDF rendering to images), `openpyxl`,
+  `google-api-python-client` + `google-auth-oauthlib` (Gmail), `google-genai`
+  (Gemini), `pdfplumber`, `pymupdf` (fallback PDF rendering to images), `openpyxl`,
   `pandas`, `python-docx`, `Pillow`, `rapidfuzz` (fuzzy vendor/item matching),
   `apscheduler` (background polling worker), `openpyxl` (Excel export),
-  `passlib`/`python-jose` (auth), `pytest` (tests).
+  `bcrypt`/`python-jose` (auth), `pytest` (tests).
 - **Frontend** (later phases): React/Next.js consuming the FastAPI REST API. MVP
   ships a minimal static dashboard (`frontend/index.html`) against the same API.

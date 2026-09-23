@@ -17,15 +17,15 @@ from sqlalchemy.orm import Session
 
 from .config import settings
 
-ANTHROPIC_API_KEY = settings.ANTHROPIC_API_KEY
+GEMINI_API_KEY = settings.GEMINI_API_KEY
 AI_MODEL = settings.AI_MODEL
 GOOGLE_CLIENT_ID = settings.GOOGLE_CLIENT_ID
 GOOGLE_CLIENT_SECRET = settings.GOOGLE_CLIENT_SECRET
 GOOGLE_OAUTH_REDIRECT_URI = settings.GOOGLE_OAUTH_REDIRECT_URI
 GMAIL_QUERY = settings.GMAIL_QUERY
 
-_SECRET_KEYS = {"ANTHROPIC_API_KEY", "GOOGLE_CLIENT_SECRET"}
-_ALL_KEYS = {"ANTHROPIC_API_KEY", "AI_MODEL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET",
+_SECRET_KEYS = {"GEMINI_API_KEY", "GOOGLE_CLIENT_SECRET"}
+_ALL_KEYS = {"GEMINI_API_KEY", "AI_MODEL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET",
              "GOOGLE_OAUTH_REDIRECT_URI", "GMAIL_QUERY"}
 
 
@@ -76,7 +76,7 @@ def status(db: Session) -> dict:
     """What the Settings screen shows: whether each secret is configured
     (never the value itself), plus the current non-secret values."""
     return {
-        "anthropic_api_key_set": bool(ANTHROPIC_API_KEY),
+        "gemini_api_key_set": bool(GEMINI_API_KEY),
         "google_client_id": GOOGLE_CLIENT_ID,  # not a secret - fine to show as-is
         "google_client_id_set": bool(GOOGLE_CLIENT_ID),
         "google_client_secret_set": bool(GOOGLE_CLIENT_SECRET),
