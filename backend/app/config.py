@@ -16,9 +16,10 @@ class Settings(BaseSettings):
     GMAIL_POLL_INTERVAL_SECONDS: int = 300
 
     GEMINI_API_KEY: str = ""
-    # Configurable via the Settings screen too - update this if Google
-    # retires this model id (check aistudio.google.com for current names).
-    AI_MODEL: str = "gemini-2.0-flash"
+    # Also editable from the Settings screen without a new download - Google
+    # periodically retires older model ids (check aistudio.google.com for
+    # current names if extraction ever starts failing with a 404).
+    AI_MODEL: str = "gemini-3.6-flash"
 
     CLASSIFICATION_CONFIDENCE_THRESHOLD: float = 0.85
     MATCHING_CONFIDENCE_THRESHOLD: float = 0.90

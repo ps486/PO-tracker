@@ -17,6 +17,7 @@ router = APIRouter(prefix="/api/settings", tags=["settings"], dependencies=[Depe
 
 class SettingsUpdate(BaseModel):
     gemini_api_key: str | None = None
+    ai_model: str | None = None
     google_client_id: str | None = None
     google_client_secret: str | None = None
     google_oauth_redirect_uri: str | None = None
@@ -33,6 +34,7 @@ def update_settings(payload: SettingsUpdate, db: Session = Depends(get_db)):
     runtime_config.save(
         db,
         GEMINI_API_KEY=payload.gemini_api_key,
+        AI_MODEL=payload.ai_model,
         GOOGLE_CLIENT_ID=payload.google_client_id,
         GOOGLE_CLIENT_SECRET=payload.google_client_secret,
         GOOGLE_OAUTH_REDIRECT_URI=payload.google_oauth_redirect_uri,

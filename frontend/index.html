@@ -145,6 +145,8 @@
         <p class="field-hint">Free to get, from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>.</p>
         <label>Gemini API Key <span id="status-gemini" class="field-status"></span></label>
         <input id="s-gemini-key" type="password" placeholder="AIza..." />
+        <label>AI Model <span class="field-hint-inline">(only change this if you see a "model ... is no longer available" error - Google occasionally retires older model names)</span></label>
+        <input id="s-ai-model" placeholder="gemini-3.6-flash" />
 
         <h3>Gmail connection</h3>
         <p class="field-hint">From <a href="https://console.cloud.google.com" target="_blank" rel="noopener">console.cloud.google.com</a> - APIs &amp; Services → Credentials → OAuth client ID (Web application).</p>
@@ -336,6 +338,7 @@ async function loadSettings() {
   document.getElementById('s-google-client-id').value = s.google_client_id || '';
   document.getElementById('s-redirect-uri').value = s.google_oauth_redirect_uri || (window.location.origin + '/api/auth/gmail/callback');
   document.getElementById('s-gmail-query').value = s.gmail_query || '';
+  document.getElementById('s-ai-model').value = s.ai_model || '';
 }
 
 function copyRedirectUri() {
@@ -350,6 +353,7 @@ function copyRedirectUri() {
 async function saveSettings() {
   const payload = {
     gemini_api_key: document.getElementById('s-gemini-key').value || null,
+    ai_model: document.getElementById('s-ai-model').value || null,
     google_client_id: document.getElementById('s-google-client-id').value || null,
     google_client_secret: document.getElementById('s-google-client-secret').value || null,
     google_oauth_redirect_uri: document.getElementById('s-redirect-uri').value || null,

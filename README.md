@@ -85,6 +85,12 @@ hasn't verified this app" warning - click **Advanced → Go to PO Tracker
 (unsafe)**. This is normal for a private app only you use; it just means
 Google hasn't reviewed it, not that anything is wrong.
 
+**If document processing ever fails with a "model ... is no longer
+available" error:** Google periodically retires older Gemini model names.
+Check the error message for the replacement name it suggests, then update
+the **AI Model** field in the Settings tab (below the Gemini API Key) to
+that name and save - no new download needed.
+
 ## What's implemented (Phase 1 MVP, plus the Phase 2/3 matching engine)
 
 - Gmail OAuth connection + on-demand or scheduled polling that downloads
