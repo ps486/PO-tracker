@@ -176,6 +176,25 @@ function token() { return localStorage.getItem('po_tracker_token'); }
 function role() { return localStorage.getItem('po_tracker_role'); }
 function authHeaders() { return { 'Authorization': 'Bearer ' + token() }; }
 
+function sessionExpired() {
+  localStorage.removeItem('po_tracker_token');
+  localStorage.removeItem('po_tracker_role');
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('login-panel').classList.remove('hidden');
+  document.getElementById('login-error').textContent = 'Your session expired (e.g. after a fresh reinstall) - please log in again.';
+}
+
+// Every authenticated request goes through this instead of calling fetch()
+// directly, so a stale/invalid token (the classic case: the browser still
+// has a token from before a fresh reinstall regenerated the database and
+// security key) shows a clear "log in again" screen instead of every screen
+// silently rendering as if there's just no data yet.
+async function authedFetch(url, options = {}) {
+  const resp = await fetch(url, { ...options, headers: { ...authHeaders(), ...(options.headers || {}) } });
+  if (resp.status === 401) sessionExpired();
+  return resp;
+}
+
 function enterApp(data) {
   localStorage.setItem('po_tracker_token', data.access_token);
   localStorage.setItem('po_tracker_role', data.role);
@@ -240,7 +259,7 @@ function showToast(message, ok) {
 }
 
 async function connectGmail() {
-  const resp = await fetch(API + '/api/auth/gmail/authorize', { headers: authHeaders() });
+  const resp = await authedFetch(API + '/api/auth/gmail/authorize');
   if (!resp.ok) { showToast('Could not start Gmail connection (admin role required).', false); return; }
   const data = await resp.json();
   window.location.href = data.authorization_url;  // full-page nav - Google needs a real browser redirect, not fetch
@@ -253,7 +272,7 @@ async function loadGmailBar() {
   bar.classList.remove('hidden');
   settingsBtn.classList.remove('hidden');
 
-  const resp = await fetch(API + '/api/auth/gmail/mailboxes', { headers: authHeaders() });
+  const resp = await authedFetch(API + '/api/auth/gmail/mailboxes');
   const mailboxes = resp.ok ? await resp.json() : [];
 
   const chips = mailboxes.map(m => `
@@ -279,8 +298,8 @@ async function runIngestNow(mailboxEmail) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 120000);
   try {
-    const resp = await fetch(API + '/api/ingest/run?mailbox_email=' + encodeURIComponent(mailboxEmail), {
-      method: 'POST', headers: authHeaders(), signal: controller.signal,
+    const resp = await authedFetch(API + '/api/ingest/run?mailbox_email=' + encodeURIComponent(mailboxEmail), {
+      method: 'POST', signal: controller.signal,
     });
     let data;
     try {
@@ -308,7 +327,7 @@ function fieldStatus(elId, isSet) {
 }
 
 async function loadSettings() {
-  const resp = await fetch(API + '/api/settings', { headers: authHeaders() });
+  const resp = await authedFetch(API + '/api/settings');
   if (!resp.ok) return;
   const s = await resp.json();
   fieldStatus('status-gemini', s.gemini_api_key_set);
@@ -336,12 +355,13 @@ async function saveSettings() {
     google_oauth_redirect_uri: document.getElementById('s-redirect-uri').value || null,
     gmail_query: document.getElementById('s-gmail-query').value || null,
   };
-  const resp = await fetch(API + '/api/settings', {
-    method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+  const resp = await authedFetch(API + '/api/settings', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
   if (!resp.ok) {
-    document.getElementById('settings-error').textContent = 'Could not save settings.';
+    document.getElementById('settings-error').textContent =
+      resp.status === 401 ? 'Your session expired - please log in again.' : 'Could not save settings.';
     return;
   }
   document.getElementById('settings-error').textContent = '';
@@ -377,7 +397,7 @@ function money(v) { return v == null ? '-' : Number(v).toLocaleString(undefined,
 function dateStr(v) { return v || '-'; }
 
 async function loadKPIs() {
-  const resp = await fetch(API + '/api/dashboard/kpis', { headers: authHeaders() });
+  const resp = await authedFetch(API + '/api/dashboard/kpis');
   if (!resp.ok) return;
   const k = await resp.json();
   const items = [
@@ -399,7 +419,7 @@ async function loadTracker() {
   if (status) params.set('status', status);
   if (overdue) params.set('overdue_only', 'true');
 
-  const resp = await fetch(API + '/api/pos?' + params.toString(), { headers: authHeaders() });
+  const resp = await authedFetch(API + '/api/pos?' + params.toString());
   if (!resp.ok) return;
   const rows = await resp.json();
   document.querySelector('#tracker-table tbody').innerHTML = rows.map(r => `
@@ -419,7 +439,7 @@ async function loadExceptions() {
   const params = new URLSearchParams();
   const status = document.getElementById('e-status').value;
   if (status) params.set('status_filter', status);
-  const resp = await fetch(API + '/api/exceptions?' + params.toString(), { headers: authHeaders() });
+  const resp = await authedFetch(API + '/api/exceptions?' + params.toString());
   if (!resp.ok) return;
   const rows = await resp.json();
   document.querySelector('#exceptions-table tbody').innerHTML = rows.map(r => `
@@ -437,9 +457,9 @@ async function loadExceptions() {
 
 async function resolveException(id, action) {
   const resolution = prompt('Optional comment for this ' + action.toLowerCase() + ':') || '';
-  const resp = await fetch(API + `/api/exceptions/${id}/resolve`, {
+  const resp = await authedFetch(API + `/api/exceptions/${id}/resolve`, {
     method: 'POST',
-    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, resolution }),
   });
   if (resp.ok) { loadExceptions(); loadKPIs(); }
@@ -447,7 +467,7 @@ async function resolveException(id, action) {
 }
 
 async function loadVendors() {
-  const resp = await fetch(API + '/api/dashboard/vendor-analysis', { headers: authHeaders() });
+  const resp = await authedFetch(API + '/api/dashboard/vendor-analysis');
   if (!resp.ok) return;
   const rows = await resp.json();
   document.querySelector('#vendors-table tbody').innerHTML = rows.map(r => `
@@ -459,7 +479,7 @@ async function loadVendors() {
 }
 
 function exportExcel() {
-  fetch(API + '/api/export/po-tracker.xlsx', { headers: authHeaders() })
+  authedFetch(API + '/api/export/po-tracker.xlsx')
     .then(r => r.blob())
     .then(blob => {
       const url = URL.createObjectURL(blob);
