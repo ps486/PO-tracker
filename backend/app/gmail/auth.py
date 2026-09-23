@@ -48,8 +48,19 @@ def build_flow(state: str | None = None) -> Flow:
             "redirect_uris": [runtime_config.GOOGLE_OAUTH_REDIRECT_URI],
         }
     }
+    # get_authorization_url() and exchange_code_for_tokens() each build their
+    # own Flow instance (they run in separate HTTP requests, potentially
+    # minutes apart) - the library's default auto-generated PKCE code
+    # verifier lives only on the Flow instance that created it, so the second
+    # Flow never has the matching verifier and Google rejects the token
+    # exchange with "invalid_grant: Missing code verifier". This is a
+    # confidential client (it has a client secret, unlike a public
+    # mobile/SPA client), so PKCE isn't required for security here -
+    # disabling it avoids the mismatch entirely instead of needing to
+    # persist the verifier between requests.
     return Flow.from_client_config(
-        client_config, scopes=SCOPES, redirect_uri=runtime_config.GOOGLE_OAUTH_REDIRECT_URI, state=state
+        client_config, scopes=SCOPES, redirect_uri=runtime_config.GOOGLE_OAUTH_REDIRECT_URI, state=state,
+        autogenerate_code_verifier=False,
     )
 
 
